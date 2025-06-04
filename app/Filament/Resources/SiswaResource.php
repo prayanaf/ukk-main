@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SiswaResource\Pages;
-use App\Filament\Resources\SiswaResource\RelationManagers;
 use App\Models\Siswa;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,7 +10,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\SiswaImport;
 use Filament\Tables\Actions\Action;
@@ -22,8 +20,12 @@ use Filament\Notifications\Notification;
 class SiswaResource extends Resource
 {
     protected static ?string $model = Siswa::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
+
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) Siswa::count();
+    }
 
     public static function form(Form $form): Form
     {
@@ -47,14 +49,24 @@ class SiswaResource extends Resource
                     ->required()
                     ->columnSpanFull(),
                 Forms\Components\TextInput::make('kontak')
+                    ->label('Kontak (+62)')
+                    ->prefix('+62')
                     ->required()
-                    ->maxLength(20),
+                    ->maxLength(13)
+                    ->rule('regex:/^[0-9]{9,13}$/')
+                    ->afterStateHydrated(function ($component, $state) {
+                        if (str_starts_with($state, '+62')) {
+                            $component->state(substr($state, 3));
+                        }
+                    })
+                    ->dehydrateStateUsing(function ($state) {
+                        return '+62' . ltrim($state, '0');
+                    }),
                 Forms\Components\TextInput::make('email')
                     ->email()
+                    ->unique(ignoreRecord: true)
                     ->required()
                     ->maxLength(100),
-                // Forms\Components\Toggle::make('status_lapor_pkl')
-                    // ->required(),
                 Forms\Components\FileUpload::make('foto')
                     ->label('Foto')
                     ->image()
@@ -66,20 +78,16 @@ class SiswaResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nama')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('nis')
-                    ->searchable(),
+                Tables\Columns\TextColumn::make('nama')->searchable(),
+                Tables\Columns\TextColumn::make('nis')->searchable(),
                 Tables\Columns\BadgeColumn::make('gender')
                     ->label('Gender')
                     ->colors([
-                        'info' => 'L', 
-                        'danger' => 'P', 
+                        'info' => 'L',
+                        'danger' => 'P',
                     ]),
-                Tables\Columns\TextColumn::make('kontak')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
+                Tables\Columns\TextColumn::make('kontak')->searchable(),
+                Tables\Columns\TextColumn::make('email')->searchable(),
                 Tables\Columns\IconColumn::make('status_lapor_pkl')
                     ->label('Status PKL')
                     ->boolean(),
@@ -96,47 +104,45 @@ class SiswaResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
-                //
-            ])
+            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                //Tables\Actions\DeleteAction::make(),
-                //menyembuntikan tombol delete
-                 Tables\Actions\DeleteAction::make()
-                     ->hidden(fn($record) => $record->pkls()->exists()),
+                Tables\Actions\DeleteAction::make()
+                    ->hidden(fn($record) => $record->pkls()->exists())
+                    ->disabled(fn($record) => $record->pkls()->exists()),
             ])
             ->bulkActions([
-            Tables\Actions\BulkAction::make('delete')
-                ->label('Hapus Terpilih')
-                ->icon('heroicon-o-trash')
-                ->requiresConfirmation()
-                ->action(function (\Illuminate\Support\Collection $records) {
-                    $deletedCount = 0;
+                Tables\Actions\BulkAction::make('delete')
+                    ->label('Hapus Terpilih')
+                    ->icon('heroicon-o-trash')
+                    ->requiresConfirmation()
+                    ->action(function (\Illuminate\Support\Collection $records) {
+                        $deletedCount = 0;
 
-                    foreach ($records as $record) {
-                        try {
-                            $record->delete();
-                            $deletedCount++;
-                        } catch (\Exception $e) {
-                            // Tangani error foreign key
-                            \Filament\Notifications\Notification::make()
-                                ->title('Gagal menghapus beberapa data siswa')
-                                ->body('Beberapa siswa memiliki data PKL yang masih terhubung.')
-                                ->danger()
+                        foreach ($records as $record) {
+                            try {
+                                if (!$record->pkls()->exists()) {
+                                    $record->delete();
+                                    $deletedCount++;
+                                }
+                            } catch (\Exception $e) {
+                                Notification::make()
+                                    ->title('Gagal menghapus beberapa data siswa')
+                                    ->body('Beberapa siswa memiliki data PKL yang masih terhubung.')
+                                    ->danger()
+                                    ->send();
+                            }
+                        }
+
+                        if ($deletedCount > 0) {
+                            Notification::make()
+                                ->title("Berhasil menghapus $deletedCount siswa.")
+                                ->success()
                                 ->send();
                         }
-                    }
-
-                    if ($deletedCount > 0) {
-                        \Filament\Notifications\Notification::make()
-                            ->title("Berhasil menghapus $deletedCount siswa.")
-                            ->success()
-                            ->send();
-                    }
-                })
-                ->deselectRecordsAfterCompletion(),
-        ])
+                    })
+                    ->deselectRecordsAfterCompletion(),
+            ])
             ->headerActions([
                 Action::make('Import CSV')
                     ->label('Import CSV')

@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PklResource\Pages;
-use App\Filament\Resources\PklResource\RelationManagers;
 use App\Models\Pkl;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,7 +10,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Exports\PklExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Filament\Tables\Actions\Action;
@@ -130,5 +128,10 @@ class PklResource extends Resource
     public static function getPluralModelLabel(): string
     {
         return 'PKL Roster';
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) Pkl::count();
     }
 }

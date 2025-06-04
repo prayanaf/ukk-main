@@ -3,18 +3,14 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\IndustriResource\Pages;
-use App\Filament\Resources\IndustriResource\RelationManagers;
 use App\Models\Industri;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Validation\Rule;
-use Filament\Notifications\Notification;
 use Illuminate\Database\QueryException;
+use Filament\Notifications\Notification;
 
 class IndustriResource extends Resource
 {
@@ -54,51 +50,26 @@ class IndustriResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nama')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('bidang_usaha')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('kontak')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('website')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
+                Tables\Columns\TextColumn::make('nama')->searchable(),
+                Tables\Columns\TextColumn::make('bidang_usaha')->searchable(),
+                Tables\Columns\TextColumn::make('kontak')->searchable(),
+                Tables\Columns\TextColumn::make('email')->searchable(),
+                Tables\Columns\TextColumn::make('website')->searchable(),
+                Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('updated_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
-                ->action(function ($record) {
-                    try {
-                        $record->delete();
-                    } catch (\Illuminate\Database\QueryException $e) {
-                        \Filament\Notifications\Notification::make()
-                            ->title('Gagal menghapus')
-                            ->body('Industri ini sedang digunakan dalam data PKL dan tidak bisa dihapus.')
-                            ->danger()
-                            ->send();
-
-                        // Batalkan proses delete tanpa melempar error
-                        return;
-                    }
-                // Jika berhasil, tampilkan pesan sukses
-                    \Filament\Notifications\Notification::make()
-                        ->title('Berhasil menghapus')
-                        ->body('Industri berhasil dihapus.')
-                        ->success()
-                        ->send();
-                }),
+                    ->action(function ($record) {
+                        try {
+                            $record->delete();
+                            Notification::make()->title('Berhasil menghapus')->body('Industri berhasil dihapus.')->success()->send();
+                        } catch (QueryException $e) {
+                            Notification::make()->title('Gagal menghapus')->body('Industri ini sedang digunakan dalam data PKL dan tidak bisa dihapus.')->danger()->send();
+                            return;
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -133,8 +104,13 @@ class IndustriResource extends Resource
         ];
     }
 
-    public static function getPluralModelLabel(): string 
+    public static function getPluralModelLabel(): string
     {
         return 'Industry Roster';
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) Industri::count();
     }
 }
